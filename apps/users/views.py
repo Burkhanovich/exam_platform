@@ -5,7 +5,7 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.contrib import messages
 from django.views.decorators.http import require_POST
-from .models import CustomUser
+from .models import CustomUser, StudentGroup
 
 
 def user_login(request):
