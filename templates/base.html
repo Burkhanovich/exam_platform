@@ -802,6 +802,11 @@
                     {% endif %}
                     {% if user.user_type == 'teacher' or user.user_type == 'admin' %}
                     <li class="nav-item">
+                        <a href="{% url 'exams:teacher_my_tests' %}" class="nav-link {% block nav_create_exam %}{% endblock %}">
+                            <i class="fas fa-pen-fancy"></i> Test yaratish
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a href="{% url 'exams:teacher_dashboard' %}" class="nav-link {% block nav_teacher %}{% endblock %}">
                             <i class="fas fa-chalkboard-teacher"></i> Boshqaruv
                         </a>
@@ -809,8 +814,18 @@
                     {% endif %}
                     {% if user.user_type == 'admin' or user.is_superuser %}
                     <li class="nav-item">
+                        <a href="{% url 'exams:admin_teachers' %}" class="nav-link {% block nav_admin_teachers %}{% endblock %}">
+                            <i class="fas fa-user-plus"></i> O'qituvchi qo'shish
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a href="{% url 'exams:admin_assignments' %}" class="nav-link {% block nav_admin_assign %}{% endblock %}">
                             <i class="fas fa-user-shield"></i> Ruxsat berish
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="{% url 'exams:admin_students' %}" class="nav-link {% block nav_admin_students %}{% endblock %}">
+                            <i class="fas fa-user-graduate"></i> O'quvchilar
                         </a>
                     </li>
                     {% endif %}

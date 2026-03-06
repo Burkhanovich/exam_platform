@@ -179,6 +179,12 @@ class ExamGroupPermission(models.Model):
         verbose_name='Deadline',
         help_text='Guruh uchun oxirgi muddat'
     )
+    duration = models.IntegerField(
+        null=True,
+        blank=True,
+        verbose_name='Vaqt (daqiqa)',
+        help_text='Guruh uchun test davomiyligi. Bo\'sh bo\'lsa imtihon davomiyligi ishlatiladi.'
+    )
     is_active = models.BooleanField(
         default=True,
         verbose_name='Faol'

@@ -1,0 +1,185 @@
+{% extends 'base.html' %}
+
+{% block title %}O'quvchilar boshqaruvi - TestPlatforma{% endblock %}
+{% block nav_admin_students %}active{% endblock %}
+{% block page_title %}O'quvchilar{% endblock %}
+
+{% block content %}
+<div style="margin-bottom:1.5rem;">
+    <h1 style="font-size:1.5rem;">O'quvchilarni boshqarish</h1>
+    <p style="color:var(--gray-500);font-size:0.9rem;">O'quvchilarni guruhga biriktirish va guruhlarni boshqarish</p>
+</div>
+
+<!-- Statistika -->
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-bottom:1.5rem;">
+    <div class="card" style="text-align:center;padding:1rem;">
+        <div style="font-size:1.8rem;font-weight:700;color:var(--primary);">{{ total_students }}</div>
+        <div style="color:var(--gray-500);font-size:0.85rem;">Jami o'quvchilar</div>
+    </div>
+    <div class="card" style="text-align:center;padding:1rem;">
+        <div style="font-size:1.8rem;font-weight:700;color:var(--success);">{{ groups|length }}</div>
+        <div style="color:var(--gray-500);font-size:0.85rem;">Guruhlar soni</div>
+    </div>
+    <div class="card" style="text-align:center;padding:1rem;">
+        <div style="font-size:1.8rem;font-weight:700;color:{% if no_group_count > 0 %}var(--warning){% else %}var(--success){% endif %};">{{ no_group_count }}</div>
+        <div style="color:var(--gray-500);font-size:0.85rem;">Guruhsiz o'quvchilar</div>
+    </div>
+</div>
+
+<!-- Yangi guruh yaratish -->
+<div class="card" style="border-left:4px solid var(--success);margin-bottom:1.5rem;">
+    <div class="card-header">
+        <h3 class="card-title"><i class="fas fa-layer-group" style="color:var(--success);margin-right:0.5rem;"></i>Yangi guruh yaratish</h3>
+    </div>
+    <form method="post" action="{% url 'exams:admin_create_group' %}">
+        {% csrf_token %}
+        <div style="display:grid;grid-template-columns:1fr 2fr auto;gap:1rem;align-items:end;">
+            <div class="form-group" style="margin-bottom:0;">
+                <label for="group_name">Guruh nomi</label>
+                <input type="text" name="name" id="group_name" class="form-control" placeholder="Masalan: 11-A" required>
+            </div>
+            <div class="form-group" style="margin-bottom:0;">
+                <label for="group_desc">Tavsif (ixtiyoriy)</label>
+                <input type="text" name="description" id="group_desc" class="form-control" placeholder="Qo'shimcha ma'lumot...">
+            </div>
+            <button type="submit" class="btn btn-success" style="height:42px;">
+                <i class="fas fa-plus"></i> Yaratish
+            </button>
+        </div>
+    </form>
+</div>
+
+<!-- Mavjud guruhlar -->
+{% if groups %}
+<div class="card" style="margin-bottom:1.5rem;">
+    <div class="card-header">
+        <h3 class="card-title"><i class="fas fa-th-list" style="color:var(--primary);margin-right:0.5rem;"></i>Mavjud guruhlar</h3>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:0.75rem;">
+        {% for g in groups %}
+        <div style="display:flex;align-items:center;gap:0.5rem;padding:0.5rem 1rem;background:var(--gray-50);border-radius:var(--radius);border-left:3px solid var(--primary);">
+            <span style="font-weight:600;">{{ g.name }}</span>
+            <span class="badge badge-primary" style="font-size:0.7rem;">{{ g.students_count }} ta</span>
+            {% if g.description %}
+            <span style="color:var(--gray-400);font-size:0.75rem;" title="{{ g.description }}"><i class="fas fa-info-circle"></i></span>
+            {% endif %}
+            {% if g.students_count == 0 %}
+            <form method="post" action="{% url 'exams:admin_delete_group' g.id %}" style="display:inline;" onsubmit="return confirm('{{ g.name }} guruhini o\'chirmoqchimisiz?');">
+                {% csrf_token %}
+                <button type="submit" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:0.8rem;" title="O'chirish">
+                    <i class="fas fa-trash-alt"></i>
+                </button>
+            </form>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Filtr va qidiruv -->
+<div class="card" style="margin-bottom:1rem;">
+    <form method="get" action="{% url 'exams:admin_students' %}">
+        <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:1rem;align-items:end;">
+            <div class="form-group" style="margin-bottom:0;">
+                <label for="filter_q"><i class="fas fa-search" style="color:var(--gray-400);margin-right:0.3rem;"></i>Qidiruv</label>
+                <input type="text" name="q" id="filter_q" class="form-control" placeholder="Ism, familiya yoki username..." value="{{ search_q }}">
+            </div>
+            <div class="form-group" style="margin-bottom:0;">
+                <label for="filter_group"><i class="fas fa-filter" style="color:var(--gray-400);margin-right:0.3rem;"></i>Guruh bo'yicha</label>
+                <select name="group" id="filter_group" class="form-control">
+                    <option value="">Barchasi</option>
+                    <option value="none" {% if filter_group == 'none' %}selected{% endif %}>🔴 Guruhsizlar</option>
+                    {% for g in groups %}
+                    <option value="{{ g.id }}" {% if filter_group == g.id|stringformat:"d" %}selected{% endif %}>{{ g.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div style="display:flex;gap:0.5rem;">
+                <button type="submit" class="btn btn-primary" style="height:42px;">
+                    <i class="fas fa-search"></i> Filtr
+                </button>
+                <a href="{% url 'exams:admin_students' %}" class="btn btn-secondary" style="height:42px;display:flex;align-items:center;">
+                    <i class="fas fa-times"></i>
+                </a>
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- O'quvchilar ro'yxati -->
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title"><i class="fas fa-user-graduate" style="color:var(--primary);margin-right:0.5rem;"></i>O'quvchilar ({{ students|length }})</h3>
+    </div>
+
+    {% if students %}
+    <div style="overflow-x:auto;">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th style="width:40px;">#</th>
+                    <th>O'quvchi</th>
+                    <th>Username</th>
+                    <th>Hozirgi guruh</th>
+                    <th>Guruhga biriktirish</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for student in students %}
+                <tr style="{% if not student.student_group %}background:rgba(var(--warning-rgb, 255,193,7),0.05);{% endif %}">
+                    <td style="color:var(--gray-400);">{{ forloop.counter }}</td>
+                    <td>
+                        <div style="display:flex;align-items:center;gap:0.5rem;">
+                            <div style="width:32px;height:32px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:600;">
+                                {{ student.first_name.0|upper }}{{ student.last_name.0|upper }}
+                            </div>
+                            <div>
+                                <div style="font-weight:600;">{{ student.get_full_name|default:student.username }}</div>
+                                {% if student.email %}
+                                <div style="font-size:0.75rem;color:var(--gray-400);">{{ student.email }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </td>
+                    <td><code style="font-size:0.85rem;">{{ student.username }}</code></td>
+                    <td>
+                        {% if student.student_group %}
+                        <span class="badge badge-primary">{{ student.student_group.name }}</span>
+                        {% else %}
+                        <span class="badge badge-warning" style="font-size:0.7rem;">Guruh yo'q</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <form method="post" action="{% url 'exams:admin_assign_student_group' %}" style="display:flex;gap:0.5rem;align-items:center;">
+                            {% csrf_token %}
+                            <input type="hidden" name="student_id" value="{{ student.id }}">
+                            <select name="group_id" class="form-control" style="min-width:140px;height:36px;font-size:0.85rem;">
+                                <option value="none">— Guruhsiz —</option>
+                                {% for g in groups %}
+                                <option value="{{ g.id }}" {% if student.student_group_id == g.id %}selected{% endif %}>{{ g.name }}</option>
+                                {% endfor %}
+                            </select>
+                            <button type="submit" class="btn btn-primary" style="height:36px;font-size:0.8rem;padding:0 0.75rem;white-space:nowrap;">
+                                <i class="fas fa-save"></i> Saqlash
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div style="text-align:center;padding:2rem;color:var(--gray-400);">
+        <i class="fas fa-users" style="font-size:2rem;margin-bottom:0.5rem;display:block;"></i>
+        <p>O'quvchilar topilmadi</p>
+        {% if search_q or filter_group %}
+        <a href="{% url 'exams:admin_students' %}" class="btn btn-secondary" style="margin-top:0.5rem;">
+            <i class="fas fa-times"></i> Filtrni tozalash
+        </a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

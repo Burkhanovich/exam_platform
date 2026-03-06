@@ -1,0 +1,383 @@
+{% extends 'base.html' %}
+
+{% block title %}Testni tahrirlash - {{ exam.title }}{% endblock %}
+{% block nav_create_exam %}active{% endblock %}
+{% block page_title %}Testni tahrirlash{% endblock %}
+
+{% block content %}
+<div style="margin-bottom:1.5rem;">
+    <a href="{% url 'exams:teacher_my_tests' %}" style="color:var(--gray-500);text-decoration:none;font-size:0.85rem;">
+        <i class="fas fa-arrow-left"></i> Mening testlarim
+    </a>
+    <h1 style="font-size:1.5rem;margin-top:0.5rem;">{{ exam.title }} — tahrirlash</h1>
+</div>
+
+<form method="post" id="examForm">
+    {% csrf_token %}
+
+    <!-- Asosiy ma'lumotlar -->
+    <div class="card" style="border-left:4px solid var(--warning);margin-bottom:1.5rem;">
+        <div class="card-header">
+            <h3 class="card-title"><i class="fas fa-edit" style="color:var(--warning);margin-right:0.5rem;"></i>Test ma'lumotlari</h3>
+        </div>
+        <div style="display:grid;grid-template-columns:2fr 1fr;gap:1rem;">
+            <div class="form-group">
+                <label for="title"><i class="fas fa-heading" style="color:var(--gray-400);margin-right:0.3rem;"></i>Test nomi</label>
+                <input type="text" name="title" id="title" class="form-control" value="{{ exam.title }}" required>
+            </div>
+            <div class="form-group">
+                <label for="exam_type"><i class="fas fa-tag" style="color:var(--gray-400);margin-right:0.3rem;"></i>Test turi</label>
+                <select name="exam_type" id="exam_type" class="form-control">
+                    <option value="practice" {% if exam.exam_type == 'practice' %}selected{% endif %}>Mashq test</option>
+                    <option value="midterm" {% if exam.exam_type == 'midterm' %}selected{% endif %}>Oraliq nazorat</option>
+                    <option value="final" {% if exam.exam_type == 'final' %}selected{% endif %}>Yakuniy nazorat</option>
+                </select>
+            </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+            <div class="form-group">
+                <label for="subject_id"><i class="fas fa-book" style="color:var(--gray-400);margin-right:0.3rem;"></i>Fan</label>
+                <select name="subject_id" id="subject_id" class="form-control" required onchange="toggleNewSubject(this)">
+                    <option value="">— Fan tanlang —</option>
+                    {% for subject in subjects %}
+                    <option value="{{ subject.id }}" {% if subject.id == exam.subject_id %}selected{% endif %}>{{ subject.name }}</option>
+                    {% endfor %}
+                    <option value="new" style="font-weight:700;color:var(--success);">+ Yangi fan qo'shish</option>
+                </select>
+                <div id="newSubjectContainer" style="display:none;margin-top:0.5rem;">
+                    <input type="text" name="new_subject_name" id="new_subject_name" class="form-control" placeholder="Yangi fan nomi">
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="passing_marks"><i class="fas fa-check-double" style="color:var(--gray-400);margin-right:0.3rem;"></i>O'tish balli</label>
+                <input type="number" name="passing_marks" id="passing_marks" class="form-control" value="{{ exam.passing_marks }}" min="0">
+                <small style="color:var(--gray-400);font-size:0.75rem;">Test vaqti guruhga biriktirilganda belgilanadi</small>
+            </div>
+        </div>
+        <div class="form-group">
+            <label for="description"><i class="fas fa-align-left" style="color:var(--gray-400);margin-right:0.3rem;"></i>Tavsif (ixtiyoriy)</label>
+            <textarea name="description" id="description" class="form-control" rows="2">{{ exam.description }}</textarea>
+        </div>
+        <input type="hidden" name="total_marks" id="total_marks" value="{{ exam.total_marks }}">
+    </div>
+
+    <!-- Savollar bo'limi -->
+    <div id="questionsContainer">
+        <!-- JS orqali yuklanadi -->
+    </div>
+
+    <!-- Savol qo'shish tugmasi -->
+    <div style="display:flex;gap:1rem;margin-bottom:1.5rem;">
+        <button type="button" class="btn btn-success" onclick="addQuestion()" style="flex:1;">
+            <i class="fas fa-plus-circle"></i> Savol qo'shish
+        </button>
+        <button type="button" class="btn btn-secondary" onclick="addMultipleQuestions()" title="Bir nechta bo'sh savol qo'shish">
+            <i class="fas fa-layer-group"></i> 5 ta savol
+        </button>
+    </div>
+
+    <!-- Saqlash -->
+    <div class="card" style="border-left:4px solid var(--warning);">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;">
+            <div>
+                <span style="font-weight:700;font-size:1.1rem;">Jami:</span>
+                <span id="totalQuestionsCount" class="badge badge-primary" style="margin-left:0.5rem;">0 ta savol</span>
+                <span id="totalMarksDisplay" class="badge badge-info" style="margin-left:0.5rem;">0 ball</span>
+            </div>
+            <button type="submit" class="btn btn-warning btn-lg" id="submitBtn">
+                <i class="fas fa-save"></i> O'zgarishlarni saqlash
+            </button>
+        </div>
+    </div>
+</form>
+
+<style>
+.question-card {
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius);
+    padding: 1.25rem;
+    margin-bottom: 1rem;
+    background: var(--white);
+    box-shadow: var(--shadow-sm);
+    transition: var(--transition);
+    position: relative;
+}
+.question-card:hover { box-shadow: var(--shadow-md); }
+.question-card.collapsed .question-body { display: none; }
+.question-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    cursor: pointer;
+    user-select: none;
+}
+.question-number {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--warning), var(--danger));
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 0.9rem;
+    flex-shrink: 0;
+}
+.question-title-preview {
+    flex: 1;
+    font-weight: 600;
+    color: var(--gray-700);
+    font-size: 0.95rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.question-actions {
+    display: flex;
+    gap: 0.4rem;
+    align-items: center;
+}
+.question-actions button {
+    width: 30px;
+    height: 30px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8rem;
+    transition: var(--transition);
+}
+.btn-collapse { background: var(--gray-100); color: var(--gray-500); }
+.btn-collapse:hover { background: var(--gray-200); }
+.btn-move { background: var(--gray-100); color: var(--gray-500); }
+.btn-move:hover { background: var(--gray-200); color: var(--primary); }
+.btn-delete-q { background: #fee2e2; color: var(--danger); }
+.btn-delete-q:hover { background: #fecaca; }
+.answer-row { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; }
+.answer-row input[type="text"] { flex: 1; }
+.answer-radio-label {
+    display: flex; align-items: center; gap: 0.3rem; white-space: nowrap;
+    font-size: 0.8rem; color: var(--gray-500); cursor: pointer;
+    padding: 0.3rem 0.5rem; border-radius: 6px; transition: var(--transition);
+}
+.answer-radio-label:hover { background: #dcfce7; color: var(--success); }
+.answer-radio-label input[type="radio"]:checked + span { color: var(--success); font-weight: 700; }
+.btn-remove-answer {
+    width: 28px; height: 28px; border: none; border-radius: 6px;
+    background: #fee2e2; color: var(--danger); cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.75rem; transition: var(--transition);
+}
+.btn-remove-answer:hover { background: #fecaca; }
+.btn-add-answer {
+    border: 1px dashed var(--gray-300); background: none; color: var(--gray-500);
+    padding: 0.4rem 1rem; border-radius: 6px; cursor: pointer;
+    font-size: 0.8rem; transition: var(--transition);
+}
+.btn-add-answer:hover { border-color: var(--primary); color: var(--primary); }
+.difficulty-select {
+    padding: 0.3rem 0.5rem; border: 1px solid var(--gray-200);
+    border-radius: 6px; font-size: 0.8rem; background: var(--gray-50);
+}
+</style>
+
+<script>
+let questionCount = 0;
+
+function addQuestion(data) {
+    questionCount++;
+    const idx = questionCount;
+    const container = document.getElementById('questionsContainer');
+
+    const qText = data ? data.text : '';
+    const qDiff = data ? data.difficulty : 'medium';
+    const qMarks = data ? data.marks : 1;
+    const answers = data ? data.answers : ['', '', '', ''];
+    const correctIdx = data ? data.correct : 1;
+
+    let answersHTML = '';
+    answers.forEach((a, i) => {
+        const aIdx = i + 1;
+        const checked = (aIdx === correctIdx) ? 'checked' : '';
+        answersHTML += `
+        <div class="answer-row" id="q${idx}_a${aIdx}_row">
+            <label class="answer-radio-label">
+                <input type="radio" name="question_${idx}_correct" value="${aIdx}" ${checked}>
+                <span>To'g'ri</span>
+            </label>
+            <input type="text" name="question_${idx}_answer_${aIdx}" class="form-control" placeholder="${aIdx}-javob" value="${escapeHtml(a)}" style="font-size:0.9rem;">
+            <button type="button" class="btn-remove-answer" onclick="removeAnswer(${idx}, ${aIdx})" title="O'chirish"><i class="fas fa-times"></i></button>
+        </div>`;
+    });
+
+    const diffOptions = `
+        <option value="easy" ${qDiff==='easy'?'selected':''}>Oson</option>
+        <option value="medium" ${qDiff==='medium'?'selected':''}>O'rta</option>
+        <option value="hard" ${qDiff==='hard'?'selected':''}>Qiyin</option>`;
+
+    const html = `
+    <div class="question-card" id="question_card_${idx}" data-idx="${idx}">
+        <div class="question-header" onclick="toggleQuestion(${idx})">
+            <div class="question-number" id="q_num_${idx}">${idx}</div>
+            <span class="question-title-preview" id="q_preview_${idx}">${qText || 'Yangi savol...'}</span>
+            <div class="question-actions" onclick="event.stopPropagation()">
+                <button type="button" class="btn-move" onclick="moveQuestion(${idx}, -1)" title="Yuqoriga"><i class="fas fa-arrow-up"></i></button>
+                <button type="button" class="btn-move" onclick="moveQuestion(${idx}, 1)" title="Pastga"><i class="fas fa-arrow-down"></i></button>
+                <button type="button" class="btn-collapse" onclick="toggleQuestion(${idx})" title="Yig'/ochish"><i class="fas fa-chevron-down" id="q_icon_${idx}"></i></button>
+                <button type="button" class="btn-delete-q" onclick="removeQuestion(${idx})" title="O'chirish"><i class="fas fa-trash-alt"></i></button>
+            </div>
+        </div>
+        <div class="question-body" id="q_body_${idx}" style="margin-top:1rem;">
+            <div class="form-group">
+                <textarea name="question_${idx}_text" class="form-control" rows="2" placeholder="Savol matnini kiriting..." oninput="updatePreview(${idx}, this.value)" style="font-size:0.95rem;">${escapeHtml(qText)}</textarea>
+            </div>
+            <div style="display:flex;gap:1rem;margin-bottom:1rem;">
+                <div style="display:flex;align-items:center;gap:0.5rem;">
+                    <label style="font-size:0.8rem;color:var(--gray-500);margin:0;white-space:nowrap;">Qiyinlik:</label>
+                    <select name="question_${idx}_difficulty" class="difficulty-select">${diffOptions}</select>
+                </div>
+                <div style="display:flex;align-items:center;gap:0.5rem;">
+                    <label style="font-size:0.8rem;color:var(--gray-500);margin:0;white-space:nowrap;">Ball:</label>
+                    <input type="number" name="question_${idx}_marks" class="form-control marks-input" value="${qMarks}" min="1" max="100" style="width:70px;font-size:0.85rem;padding:0.3rem 0.5rem;" onchange="updateTotals()">
+                </div>
+            </div>
+            <div style="margin-bottom:0.5rem;font-size:0.8rem;color:var(--gray-500);font-weight:600;">Javob variantlari</div>
+            <div id="answers_container_${idx}">
+                ${answersHTML}
+            </div>
+            <button type="button" class="btn-add-answer" onclick="addAnswer(${idx})">
+                <i class="fas fa-plus"></i> Javob qo'shish
+            </button>
+        </div>
+    </div>`;
+
+    container.insertAdjacentHTML('beforeend', html);
+    updateTotals();
+}
+
+function addMultipleQuestions() {
+    for (let i = 0; i < 5; i++) addQuestion();
+}
+
+function removeQuestion(idx) {
+    if (!confirm('Bu savolni o\'chirmoqchimisiz?')) return;
+    document.getElementById(`question_card_${idx}`).remove();
+    renumberQuestions();
+    updateTotals();
+}
+
+function toggleQuestion(idx) {
+    const card = document.getElementById(`question_card_${idx}`);
+    const icon = document.getElementById(`q_icon_${idx}`);
+    card.classList.toggle('collapsed');
+    icon.classList.toggle('fa-chevron-down');
+    icon.classList.toggle('fa-chevron-right');
+}
+
+function moveQuestion(idx, direction) {
+    const card = document.getElementById(`question_card_${idx}`);
+    const container = document.getElementById('questionsContainer');
+    const cards = Array.from(container.children);
+    const currentIndex = cards.indexOf(card);
+    const newIndex = currentIndex + direction;
+    if (newIndex < 0 || newIndex >= cards.length) return;
+    if (direction === -1) container.insertBefore(card, cards[newIndex]);
+    else container.insertBefore(cards[newIndex], card);
+    renumberQuestions();
+}
+
+function renumberQuestions() {
+    const cards = document.querySelectorAll('#questionsContainer .question-card');
+    cards.forEach((card, i) => {
+        const num = card.querySelector('.question-number');
+        if (num) num.textContent = i + 1;
+    });
+}
+
+function addAnswer(qIdx) {
+    const container = document.getElementById(`answers_container_${qIdx}`);
+    const existing = container.querySelectorAll('.answer-row').length;
+    if (existing >= 8) { alert('Maksimal 8 ta javob!'); return; }
+    const aIdx = existing + 1;
+    const html = `
+    <div class="answer-row" id="q${qIdx}_a${aIdx}_row">
+        <label class="answer-radio-label">
+            <input type="radio" name="question_${qIdx}_correct" value="${aIdx}">
+            <span>To'g'ri</span>
+        </label>
+        <input type="text" name="question_${qIdx}_answer_${aIdx}" class="form-control" placeholder="${aIdx}-javob" style="font-size:0.9rem;">
+        <button type="button" class="btn-remove-answer" onclick="removeAnswer(${qIdx}, ${aIdx})" title="O'chirish"><i class="fas fa-times"></i></button>
+    </div>`;
+    container.insertAdjacentHTML('beforeend', html);
+}
+
+function removeAnswer(qIdx, aIdx) {
+    const row = document.getElementById(`q${qIdx}_a${aIdx}_row`);
+    if (row) row.remove();
+    const container = document.getElementById(`answers_container_${qIdx}`);
+    const rows = container.querySelectorAll('.answer-row');
+    rows.forEach((r, i) => {
+        const newIdx = i + 1;
+        r.id = `q${qIdx}_a${newIdx}_row`;
+        const radio = r.querySelector('input[type="radio"]');
+        radio.value = newIdx;
+        const textInput = r.querySelector('input[type="text"]');
+        textInput.name = `question_${qIdx}_answer_${newIdx}`;
+        textInput.placeholder = `${newIdx}-javob`;
+    });
+}
+
+function updatePreview(idx, text) {
+    document.getElementById(`q_preview_${idx}`).textContent = text.trim() || 'Yangi savol...';
+}
+
+function updateTotals() {
+    const cards = document.querySelectorAll('#questionsContainer .question-card');
+    let totalMarks = 0;
+    document.querySelectorAll('.marks-input').forEach(inp => { totalMarks += parseInt(inp.value) || 0; });
+    document.getElementById('totalQuestionsCount').textContent = cards.length + ' ta savol';
+    document.getElementById('totalMarksDisplay').textContent = totalMarks + ' ball';
+    document.getElementById('total_marks').value = totalMarks;
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function toggleNewSubject(select) {
+    document.getElementById('newSubjectContainer').style.display = select.value === 'new' ? 'block' : 'none';
+}
+
+// Form validatsiyasi
+document.getElementById('examForm').addEventListener('submit', function(e) {
+    const cards = document.querySelectorAll('#questionsContainer .question-card');
+    if (cards.length === 0) { e.preventDefault(); alert('Kamida 1 ta savol qo\'shing!'); return; }
+    let valid = true;
+    cards.forEach((card, i) => {
+        const idx = card.dataset.idx;
+        const qText = document.querySelector(`[name="question_${idx}_text"]`).value.trim();
+        if (!qText) { alert(`${i+1}-savol matni kiritilmagan!`); valid = false; return; }
+        const correct = document.querySelector(`[name="question_${idx}_correct"]:checked`);
+        if (!correct) { alert(`${i+1}-savol uchun to'g'ri javob belgilanmagan!`); valid = false; return; }
+        const answers = card.querySelectorAll('.answer-row input[type="text"]');
+        let filled = 0;
+        answers.forEach(a => { if (a.value.trim()) filled++; });
+        if (filled < 2) { alert(`${i+1}-savol uchun kamida 2 ta javob kiritilishi kerak!`); valid = false; return; }
+    });
+    if (!valid) e.preventDefault();
+});
+
+// Mavjud savollarni yuklash
+const existingQuestions = {{ questions_json|safe }};
+if (existingQuestions.length > 0) {
+    existingQuestions.forEach(q => addQuestion(q));
+} else {
+    addQuestion();
+}
+</script>
+{% endblock %}
