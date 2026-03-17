@@ -21,30 +21,7 @@
         <div style="display:grid;grid-template-columns:2fr 1fr;gap:1rem;">
             <div class="form-group">
                 <label for="title"><i class="fas fa-heading" style="color:var(--gray-400);margin-right:0.3rem;"></i>Test nomi</label>
-                <input type="text" name="title" id="title" class="form-control" placeholder="Masalan: Matematika - 1-bob" required>
-            </div>
-            <div class="form-group">
-                <label for="exam_type"><i class="fas fa-tag" style="color:var(--gray-400);margin-right:0.3rem;"></i>Test turi</label>
-                <select name="exam_type" id="exam_type" class="form-control">
-                    <option value="practice">Mashq test</option>
-                    <option value="midterm">Oraliq nazorat</option>
-                    <option value="final">Yakuniy nazorat</option>
-                </select>
-            </div>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
-            <div class="form-group">
-                <label for="subject_id"><i class="fas fa-book" style="color:var(--gray-400);margin-right:0.3rem;"></i>Fan</label>
-                <select name="subject_id" id="subject_id" class="form-control" required onchange="toggleNewSubject(this)">
-                    <option value="">— Fan tanlang —</option>
-                    {% for subject in subjects %}
-                    <option value="{{ subject.id }}">{{ subject.name }}</option>
-                    {% endfor %}
-                    <option value="new" style="font-weight:700;color:var(--success);">+ Yangi fan qo'shish</option>
-                </select>
-                <div id="newSubjectContainer" style="display:none;margin-top:0.5rem;">
-                    <input type="text" name="new_subject_name" id="new_subject_name" class="form-control" placeholder="Yangi fan nomi">
-                </div>
+                <input type="text" name="title" id="title" class="form-control" placeholder="Masalan: 1-bob - Test" required>
             </div>
             <div class="form-group">
                 <label for="passing_marks"><i class="fas fa-check-double" style="color:var(--gray-400);margin-right:0.3rem;"></i>O'tish balli</label>

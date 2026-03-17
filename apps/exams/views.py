@@ -502,41 +502,29 @@ def teacher_create_exam(request):
         messages.error(request, "Sizga bu sahifaga kirishga ruxsat yo'q!")
         return redirect('users:dashboard')
 
-    subjects = Subject.objects.all()
-
     if request.method == 'POST':
-        # Asosiy ma'lumotlar
+        # Asosiy ma'lumotlar (soddalashtirilgan: faqat title, passing_marks, description va savollar)
         title = request.POST.get('title', '').strip()
-        subject_id = request.POST.get('subject_id', '')
-        exam_type = request.POST.get('exam_type', 'practice')
         description = request.POST.get('description', '').strip()
         total_marks = request.POST.get('total_marks', '').strip()
         passing_marks = request.POST.get('passing_marks', '').strip()
 
         # Validatsiya
-        if not title or not subject_id:
-            messages.error(request, "Test nomi va fan kiritilishi shart!")
-            return render(request, 'exams/teacher_create_exam.html', {'subjects': subjects})
-
-        try:
-            subject = Subject.objects.get(id=subject_id)
-        except Subject.DoesNotExist:
-            messages.error(request, "Fan topilmadi!")
-            return render(request, 'exams/teacher_create_exam.html', {'subjects': subjects})
-
-        # Yangi fan yaratish (agar 'new_subject' tanlangan bo'lsa)
-        new_subject_name = request.POST.get('new_subject_name', '').strip()
-        if subject_id == 'new' and new_subject_name:
-            subject, _ = Subject.objects.get_or_create(name=new_subject_name)
+        if not title:
+            messages.error(request, "Test nomi kiritilishi shart!")
+            return render(request, 'exams/teacher_create_exam.html')
 
         from datetime import datetime, timedelta
         now = timezone.now()
+
+        # Default subject: 'No Subject' (teachers cannot create/select subjects)
+        subject, _ = Subject.objects.get_or_create(name='No Subject')
 
         # Exam yaratish (duration=0, chunki vaqt guruhga biriktirilganda belgilanadi)
         exam = Exam.objects.create(
             title=title,
             subject=subject,
-            exam_type=exam_type,
+            exam_type='practice',
             description=description,
             duration=0,
             total_marks=int(total_marks) if total_marks else 100,
@@ -598,7 +586,7 @@ def teacher_create_exam(request):
         )
         return redirect('exams:teacher_my_tests')
 
-    return render(request, 'exams/teacher_create_exam.html', {'subjects': subjects})
+    return render(request, 'exams/teacher_create_exam.html')
 
 
 @login_required
@@ -628,33 +616,19 @@ def teacher_edit_exam(request, exam_id):
         return redirect('users:dashboard')
 
     exam = get_object_or_404(Exam, id=exam_id, created_by=user)
-    subjects = Subject.objects.all()
     questions = exam.questions.all().prefetch_related('answers').order_by('order')
 
     if request.method == 'POST':
         title = request.POST.get('title', '').strip()
-        subject_id = request.POST.get('subject_id', '')
-        exam_type = request.POST.get('exam_type', 'practice')
         description = request.POST.get('description', '').strip()
         passing_marks = request.POST.get('passing_marks', '').strip()
 
-        if not title or not subject_id:
-            messages.error(request, "Test nomi va fan kiritilishi shart!")
+        if not title:
+            messages.error(request, "Test nomi kiritilishi shart!")
             return redirect('exams:teacher_edit_exam', exam_id=exam.id)
-
-        try:
-            subject = Subject.objects.get(id=subject_id)
-        except Subject.DoesNotExist:
-            messages.error(request, "Fan topilmadi!")
-            return redirect('exams:teacher_edit_exam', exam_id=exam.id)
-
-        new_subject_name = request.POST.get('new_subject_name', '').strip()
-        if subject_id == 'new' and new_subject_name:
-            subject, _ = Subject.objects.get_or_create(name=new_subject_name)
 
         exam.title = title
-        exam.subject = subject
-        exam.exam_type = exam_type
+        # Do not allow teachers to change subject or exam_type here
         exam.description = description
         exam.passing_marks = int(passing_marks) if passing_marks else 60
 
