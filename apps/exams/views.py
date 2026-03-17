@@ -327,50 +327,13 @@ def grant_permission(request, assignment_id):
     if user.user_type not in ('teacher', 'admin'):
         messages.error(request, "Sizga bu sahifaga kirishga ruxsat yo'q!")
         return redirect('users:dashboard')
-
-    assignment = get_object_or_404(ExamAssignment, id=assignment_id, teacher=user)
-    now = timezone.now()
-
-    # Admin deadline tekshiruvi
-    if now > assignment.admin_deadline:
-        messages.error(request, "Admin belgilagan muddat o'tib ketgan!")
-        return redirect('exams:teacher_dashboard')
-
-    # Admin start time tekshiruvi
-    if assignment.admin_start_time and now < assignment.admin_start_time:
-        messages.error(request, f"Ruxsat berish {assignment.admin_start_time.strftime('%d.%m.%Y %H:%M')} dan boshlab mumkin!")
-        return redirect('exams:teacher_dashboard')
-
-    groups = StudentGroup.objects.all()
-
-    # Allaqachon ruxsat berilgan guruhlar
-    existing_permissions = ExamGroupPermission.objects.filter(
-        exam=assignment.exam,
-        teacher=user
-    ).select_related('group')
-    existing_group_ids = set(existing_permissions.values_list('group_id', flat=True))
-
     if request.method == 'POST':
+        # Initial assignment: create pending (inactive) permission.
         group_id = request.POST.get('group_id')
         deadline_str = request.POST.get('deadline')
-        duration_str = request.POST.get('duration', '').strip()
 
         if not deadline_str:
             messages.error(request, "Deadline tanlanishi shart!")
-            return redirect('exams:grant_permission', assignment_id=assignment.id)
-
-        # Vaqt (daqiqa) — majburiy
-        if not duration_str:
-            messages.error(request, "Test vaqti (daqiqa) kiritilishi shart!")
-            return redirect('exams:grant_permission', assignment_id=assignment.id)
-
-        group_duration = None
-        try:
-            group_duration = int(duration_str)
-            if group_duration < 1:
-                raise ValueError
-        except ValueError:
-            messages.error(request, "Vaqt (daqiqa) noto'g'ri kiritildi!")
             return redirect('exams:grant_permission', assignment_id=assignment.id)
 
         # Deadline parsing
@@ -386,7 +349,7 @@ def grant_permission(request, assignment_id):
             messages.error(request, f"Deadline admin muddatidan ({assignment.admin_deadline.strftime('%d.%m.%Y %H:%M')}) oshmasligi kerak!")
             return redirect('exams:grant_permission', assignment_id=assignment.id)
 
-        # "Barcha guruhlar" tanlangan bo'lsa
+        # Create pending permissions for target groups (is_active=False, duration left empty)
         if group_id == 'all':
             target_groups = groups
             created_count = 0
@@ -398,8 +361,8 @@ def grant_permission(request, assignment_id):
                     defaults={
                         'teacher': user,
                         'deadline': deadline,
-                        'duration': group_duration,
-                        'is_active': True,
+                        'duration': None,
+                        'is_active': False,
                     }
                 )
                 if created:
@@ -408,9 +371,9 @@ def grant_permission(request, assignment_id):
                     updated_count += 1
             msg_parts = []
             if created_count:
-                msg_parts.append(f"{created_count} ta guruhga ruxsat berildi")
+                msg_parts.append(f"{created_count} ta guruhga ruxsat berildi (pending)")
             if updated_count:
-                msg_parts.append(f"{updated_count} ta guruh yangilandi")
+                msg_parts.append(f"{updated_count} ta guruh yangilandi (pending)")
             messages.success(request, f"Barcha guruhlar uchun '{assignment.exam.title}': {', '.join(msg_parts)}!")
         else:
             if not group_id:
@@ -419,24 +382,22 @@ def grant_permission(request, assignment_id):
 
             group = get_object_or_404(StudentGroup, id=group_id)
 
-            # Yaratish yoki yangilash
+            # Create or update pending permission
             perm, created = ExamGroupPermission.objects.update_or_create(
                 exam=assignment.exam,
                 group=group,
                 defaults={
                     'teacher': user,
                     'deadline': deadline,
-                    'duration': group_duration,
-                    'is_active': True,
+                    'duration': None,
+                    'is_active': False,
                 }
             )
 
-            if created:
-                messages.success(request, f"'{group.name}' guruhiga '{assignment.exam.title}' imtihoni uchun ruxsat berildi!")
-            else:
-                messages.success(request, f"'{group.name}' guruhi uchun ruxsat yangilandi!")
+            action = "yaratildi" if created else "yangilandi"
+            messages.success(request, f"'{assignment.exam.title}' uchun {group.name} guruhiga ruxsat {action} (pending)!")
 
-        return redirect('exams:teacher_dashboard')
+        return redirect('exams:grant_permission', assignment_id=assignment.id)
 
     context = {
         'assignment': assignment,
@@ -1289,3 +1250,44 @@ def admin_delete_group(request, group_id):
     group.delete()
     messages.success(request, f"'{name}' guruhi o'chirildi!")
     return redirect('exams:admin_students')
+
+
+@login_required
+def teacher_activate_permission(request, permission_id):
+    """O'qituvchi — pending permission uchun duration belgilaydi va testni ochadi (is_active=True)"""
+    user = request.user
+    if user.user_type not in ('teacher', 'admin'):
+        messages.error(request, "Sizga bu sahifaga kirishga ruxsat yo'q!")
+        return redirect('users:dashboard')
+
+    perm = get_object_or_404(ExamGroupPermission, id=permission_id, teacher=user)
+    now = timezone.now()
+
+    if request.method != 'POST':
+        messages.error(request, "Noto'g'ri so'rov")
+        return redirect('exams:teacher_dashboard')
+
+    duration_str = request.POST.get('duration', '').strip()
+    if not duration_str:
+        messages.error(request, "Test vaqti kiritilishi shart!")
+        return redirect('exams:grant_permission', assignment_id=perm.exam.assignments.filter(teacher=user).first().id)
+
+    try:
+        duration = int(duration_str)
+        if duration < 1:
+            raise ValueError
+    except ValueError:
+        messages.error(request, "Vaqt (daqiqa) noto'g'ri kiritildi!")
+        return redirect('exams:grant_permission', assignment_id=perm.exam.assignments.filter(teacher=user).first().id)
+
+    # Check deadline not passed
+    if timezone.now() > perm.deadline:
+        messages.error(request, "Permission muddati o'tib ketgan!")
+        return redirect('exams:grant_permission', assignment_id=perm.exam.assignments.filter(teacher=user).first().id)
+
+    perm.duration = duration
+    perm.is_active = True
+    perm.save()
+
+    messages.success(request, f"{perm.group.name} uchun '{perm.exam.title}' testi boshlandi — {duration} daqiqa")
+    return redirect('exams:grant_permission', assignment_id=perm.exam.assignments.filter(teacher=user).first().id)
