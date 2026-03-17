@@ -131,6 +131,7 @@ def start_exam(request, exam_id):
         exam=exam,
         group=user.student_group,
         is_active=True,
+        status='active',
         deadline__gte=now
     ).first()
     if not permission:
@@ -200,7 +201,6 @@ def take_exam(request, exam_id):
         group_perm = ExamGroupPermission.objects.filter(
             exam=exam,
             group=request.user.student_group,
-            is_active=True
         ).first()
         if group_perm and group_perm.duration:
             effective_duration = group_perm.duration
@@ -401,8 +401,74 @@ def revoke_permission(request, permission_id):
     group_name = perm.group.name
     exam_title = perm.exam.title
     perm.is_active = False
+    perm.status = 'cancelled'
     perm.save()
     messages.success(request, f"'{group_name}' guruhi uchun '{exam_title}' imtihon ruxsati bekor qilindi!")
+    return redirect('exams:teacher_dashboard')
+
+
+@login_required
+def end_exam_permission(request, permission_id):
+    """O'qituvchi imtihonni tugatadi — faol ruxsatni to'xtatadi va jarayondagi urinishlarni yakunlaydi"""
+    from django.utils import timezone
+
+    user = request.user
+    if user.user_type not in ('teacher', 'admin'):
+        messages.error(request, "Sizga ruxsat yo'q!")
+        return redirect('users:dashboard')
+
+    perm = get_object_or_404(ExamGroupPermission, id=permission_id, teacher=user)
+
+    if not perm.is_active or perm.status != 'active':
+        messages.warning(request, "Bu imtihon allaqachon tugatilgan yoki bekor qilingan.")
+        return redirect('exams:teacher_dashboard')
+
+    now = timezone.now()
+    group_name = perm.group.name
+    exam_title = perm.exam.title
+
+    # Ruxsatni tugatish
+    perm.is_active = False
+    perm.status = 'ended'
+    perm.ended_at = now
+    perm.save()
+
+    # Jarayondagi urinishlarni avtomatik yakunlash
+    from apps.questions.models import Question, Answer
+    in_progress_attempts = ExamAttempt.objects.filter(
+        exam=perm.exam,
+        student__student_group=perm.group,
+        status='in_progress',
+    )
+
+    ended_count = 0
+    for attempt in in_progress_attempts:
+        attempt.status = 'completed'
+        attempt.completed_at = now
+        attempt.save()
+
+        # Natijalarni hisoblash (agar ExamResult mavjud bo'lmasa)
+        if not ExamResult.objects.filter(exam=perm.exam, student=attempt.student).exists():
+            questions = Question.objects.filter(exam=perm.exam)
+            total_questions = questions.count()
+            # Talabaning javoblarini request.POST dan emas, bazadan olish mumkin emas
+            # Shuning uchun score = 0 bo'ladi (javoblar submit qilinmagan)
+            ExamResult.objects.create(
+                exam=perm.exam,
+                student=attempt.student,
+                attempt=attempt,
+                score=0,
+                total_questions=total_questions,
+                correct_answers=0,
+                wrong_answers=total_questions,
+                passed=False,
+            )
+        ended_count += 1
+
+    msg = f"'{exam_title}' imtihoni '{group_name}' guruhi uchun tugatildi!"
+    if ended_count > 0:
+        msg += f" {ended_count} ta jarayondagi urinish avtomatik yakunlandi."
+    messages.success(request, msg)
     return redirect('exams:teacher_dashboard')
 
 

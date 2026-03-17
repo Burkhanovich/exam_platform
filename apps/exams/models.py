@@ -163,6 +163,13 @@ class ExamAssignment(models.Model):
 
 class ExamGroupPermission(models.Model):
     """O'qituvchi tomonidan guruhga imtihon ruxsati"""
+
+    STATUS_CHOICES = (
+        ('active', 'Faol'),
+        ('ended', 'Tugatilgan'),
+        ('cancelled', 'Bekor qilingan'),
+    )
+
     exam = models.ForeignKey(
         Exam,
         on_delete=models.CASCADE,
@@ -195,6 +202,17 @@ class ExamGroupPermission(models.Model):
         default=True,
         verbose_name='Faol'
     )
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='active',
+        verbose_name='Holat'
+    )
+    ended_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name='Tugatilgan vaqt'
+    )
     created_at = models.DateTimeField(
         auto_now_add=True,
         verbose_name='Ruxsat berilgan vaqti'
@@ -212,7 +230,7 @@ class ExamGroupPermission(models.Model):
     def is_valid(self):
         """Ruxsat hali amal qilayotganini tekshiradi"""
         from django.utils import timezone
-        return self.is_active and timezone.now() <= self.deadline
+        return self.is_active and self.status == 'active' and timezone.now() <= self.deadline
 
 
 class ExamAttempt(models.Model):

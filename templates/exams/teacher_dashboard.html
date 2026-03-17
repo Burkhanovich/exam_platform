@@ -93,7 +93,7 @@
                     <th>Guruh</th>
                     <th>Deadline</th>
                     <th>Holat</th>
-                    <th></th>
+                    <th style="text-align:right;">Amallar</th>
                 </tr>
             </thead>
             <tbody>
@@ -107,7 +107,11 @@
                         </span>
                     </td>
                     <td>
-                        {% if not p.is_active %}
+                        {% if p.status == 'ended' %}
+                            <span class="badge badge-warning">Tugatilgan</span>
+                        {% elif p.status == 'cancelled' %}
+                            <span class="badge badge-danger">Bekor qilingan</span>
+                        {% elif not p.is_active %}
                             <span class="badge badge-danger">Bekor qilingan</span>
                         {% elif p.deadline < now %}
                             <span class="badge badge-warning">Muddati o'tgan</span>
@@ -115,11 +119,22 @@
                             <span class="badge badge-success">Faol</span>
                         {% endif %}
                     </td>
-                    <td>
-                        {% if p.is_active and p.deadline >= now %}
-                        <a href="{% url 'exams:revoke_permission' p.id %}" class="btn btn-sm btn-danger" onclick="return confirm('Haqiqatan ham bekor qilmoqchimisiz?');">
-                            <i class="fas fa-times"></i> Bekor qilish
-                        </a>
+                    <td style="text-align:right;white-space:nowrap;">
+                        {% if p.is_active and p.status == 'active' and p.deadline >= now %}
+                        <form method="post" action="{% url 'exams:end_exam_permission' p.id %}" style="display:inline;" onsubmit="return confirm('Haqiqatan ham imtihonni tugatmoqchimisiz? Jarayondagi urinishlar avtomatik yakunlanadi.');">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-warning" style="margin-right:0.3rem;">
+                                <i class="fas fa-stop-circle"></i> Tugatish
+                            </button>
+                        </form>
+                        <form method="post" action="{% url 'exams:revoke_permission' p.id %}" style="display:inline;" onsubmit="return confirm('Haqiqatan ham bekor qilmoqchimisiz?');">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-danger">
+                                <i class="fas fa-times"></i> Bekor qilish
+                            </button>
+                        </form>
+                        {% elif p.status == 'ended' and p.ended_at %}
+                        <span style="font-size:0.75rem;color:var(--gray-400);">{{ p.ended_at|date:"d.m.Y H:i" }}</span>
                         {% endif %}
                     </td>
                 </tr>
