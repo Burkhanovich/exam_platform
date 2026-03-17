@@ -102,12 +102,18 @@ class Exam(models.Model):
 
 
 class ExamAssignment(models.Model):
-    """Admin tomonidan o'qituvchiga imtihon biriktirilishi"""
-    exam = models.ForeignKey(
-        Exam,
+    """Admin tomonidan o'qituvchiga fan+guruh biriktirilishi"""
+    subject = models.ForeignKey(
+        Subject,
         on_delete=models.CASCADE,
         related_name='assignments',
-        verbose_name='Imtihon'
+        verbose_name='Fan'
+    )
+    group = models.ForeignKey(
+        'users.StudentGroup',
+        on_delete=models.CASCADE,
+        related_name='assignments',
+        verbose_name='Guruh'
     )
     teacher = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -148,11 +154,11 @@ class ExamAssignment(models.Model):
     class Meta:
         verbose_name = 'Imtihon tayinlanishi'
         verbose_name_plural = 'Imtihon tayinlanishlari'
-        unique_together = ['exam', 'teacher']
+        unique_together = ['subject', 'group', 'teacher']
         ordering = ['-created_at']
 
     def __str__(self):
-        return f"{self.exam.title} → {self.teacher.get_full_name()}"
+        return f"{self.subject.name} → {self.group.name} → {self.teacher.get_full_name()}"
 
 
 class ExamGroupPermission(models.Model):

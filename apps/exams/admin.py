@@ -8,20 +8,12 @@ class SubjectAdmin(admin.ModelAdmin):
     search_fields = ['name']
 
 
-class ExamAssignmentInline(admin.TabularInline):
-    model = ExamAssignment
-    extra = 1
-    fields = ['teacher', 'admin_start_time', 'admin_deadline', 'assigned_by']
-    raw_id_fields = ['teacher', 'assigned_by']
-
-
 @admin.register(Exam)
 class ExamAdmin(admin.ModelAdmin):
     list_display = ['title', 'subject', 'exam_type', 'start_time', 'end_time', 'is_active', 'created_by']
     list_filter = ['exam_type', 'is_active', 'subject']
     search_fields = ['title', 'subject__name']
     date_hierarchy = 'start_time'
-    inlines = [ExamAssignmentInline]
     
     fieldsets = (
         ('Asosiy ma\'lumotlar', {
@@ -41,10 +33,10 @@ class ExamAdmin(admin.ModelAdmin):
 
 @admin.register(ExamAssignment)
 class ExamAssignmentAdmin(admin.ModelAdmin):
-    list_display = ['exam', 'teacher', 'admin_start_time', 'admin_deadline', 'assigned_by', 'created_at']
-    list_filter = ['teacher', 'exam__subject']
-    search_fields = ['exam__title', 'teacher__first_name', 'teacher__last_name']
-    raw_id_fields = ['exam', 'teacher', 'assigned_by']
+    list_display = ['subject', 'group', 'teacher', 'admin_start_time', 'admin_deadline', 'assigned_by', 'created_at']
+    list_filter = ['teacher', 'subject', 'group']
+    search_fields = ['subject__name', 'group__name', 'teacher__first_name', 'teacher__last_name']
+    raw_id_fields = ['subject', 'group', 'teacher', 'assigned_by']
 
 
 @admin.register(ExamGroupPermission)

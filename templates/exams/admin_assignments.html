@@ -7,7 +7,7 @@
 {% block content %}
 <div style="margin-bottom:1.5rem;">
     <h1 style="font-size:1.5rem;">O'qituvchilarga ruxsat berish</h1>
-    <p style="color:var(--gray-500);font-size:0.9rem;">Imtihonlarni o'qituvchilarga tayinlash va ruxsat muddatlarini boshqarish</p>
+    <p style="color:var(--gray-500);font-size:0.9rem;">O'qituvchilarga fan va guruh bo'yicha ruxsat berish va muddatlarni boshqarish</p>
 </div>
 
 <!-- Yangi tayinlanish formasi -->
@@ -17,22 +17,31 @@
     </div>
     <form method="post" action="{% url 'exams:admin_create_assignment' %}">
         {% csrf_token %}
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
-            <div class="form-group">
-                <label for="exam_id"><i class="fas fa-file-alt" style="color:var(--gray-400);margin-right:0.3rem;"></i>Imtihon</label>
-                <select name="exam_id" id="exam_id" class="form-control" required>
-                    <option value="">— Imtihonni tanlang —</option>
-                    {% for exam in exams %}
-                    <option value="{{ exam.id }}">{{ exam.title }} ({{ exam.subject.name }})</option>
-                    {% endfor %}
-                </select>
-            </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;">
             <div class="form-group">
                 <label for="teacher_id"><i class="fas fa-chalkboard-teacher" style="color:var(--gray-400);margin-right:0.3rem;"></i>O'qituvchi</label>
                 <select name="teacher_id" id="teacher_id" class="form-control" required>
                     <option value="">— O'qituvchini tanlang —</option>
                     {% for teacher in teachers %}
                     <option value="{{ teacher.id }}">{{ teacher.get_full_name }} ({{ teacher.username }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="group_id"><i class="fas fa-users" style="color:var(--gray-400);margin-right:0.3rem;"></i>Guruh</label>
+                <select name="group_id" id="group_id" class="form-control" required>
+                    <option value="">— Guruhni tanlang —</option>
+                    {% for group in groups %}
+                    <option value="{{ group.id }}">{{ group.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="subject_id"><i class="fas fa-book" style="color:var(--gray-400);margin-right:0.3rem;"></i>Fan</label>
+                <select name="subject_id" id="subject_id" class="form-control" required>
+                    <option value="">— Fanni tanlang —</option>
+                    {% for subject in subjects %}
+                    <option value="{{ subject.id }}">{{ subject.name }}</option>
                     {% endfor %}
                 </select>
             </div>
@@ -85,7 +94,7 @@
             <thead>
                 <tr>
                     <th>O'qituvchi</th>
-                    <th>Imtihon</th>
+                    <th>Guruh</th>
                     <th>Fan</th>
                     <th>Boshlanish</th>
                     <th>Tugash</th>
@@ -107,8 +116,8 @@
                             </div>
                         </div>
                     </td>
-                    <td style="font-weight:600;">{{ a.exam.title }}</td>
-                    <td><span class="badge badge-info">{{ a.exam.subject.name }}</span></td>
+                    <td><span class="badge badge-warning">{{ a.group.name }}</span></td>
+                    <td><span class="badge badge-info">{{ a.subject.name }}</span></td>
                     <td>
                         {% if a.admin_start_time %}
                             <span style="font-size:0.85rem;">{{ a.admin_start_time|date:"d.m.Y H:i" }}</span>

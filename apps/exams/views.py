@@ -38,13 +38,13 @@ def exam_list(request):
     if user.user_type == 'student':
         exams = _get_student_exams(user)
     elif user.user_type == 'teacher':
-        # O'qituvchiga tayinlangan imtihonlar
-        assigned_exam_ids = ExamAssignment.objects.filter(
+        # O'qituvchiga tayinlangan fanlar bo'yicha imtihonlar
+        assigned_subject_ids = ExamAssignment.objects.filter(
             teacher=user,
             admin_deadline__gte=now
-        ).values_list('exam_id', flat=True)
+        ).values_list('subject_id', flat=True)
         exams = Exam.objects.filter(
-            id__in=assigned_exam_ids,
+            subject_id__in=assigned_subject_ids,
             is_active=True,
         ).select_related('subject', 'created_by')
     else:
@@ -85,9 +85,9 @@ def exam_detail(request, exam_id):
             messages.error(request, "Bu imtihon hozirda mavjud emas!")
             return redirect('exams:exam_list')
     elif user.user_type == 'teacher':
-        # O'qituvchi faqat o'ziga tayinlangan imtihonlarni ko'ra oladi
+        # O'qituvchi faqat o'ziga tayinlangan fanlar imtihonlarini ko'ra oladi
         assignment = ExamAssignment.objects.filter(
-            exam=exam,
+            subject=exam.subject,
             teacher=user
         ).first()
         if not assignment:
@@ -302,10 +302,10 @@ def teacher_dashboard(request):
 
     now = timezone.now()
 
-    # O'qituvchiga tayinlangan imtihonlar
+    # O'qituvchiga tayinlangan fan+guruhlar
     assignments = ExamAssignment.objects.filter(
         teacher=user
-    ).select_related('exam', 'exam__subject', 'assigned_by').order_by('-created_at')
+    ).select_related('subject', 'group', 'assigned_by').order_by('-created_at')
 
     # Guruh ruxsatlari
     permissions = ExamGroupPermission.objects.filter(
@@ -322,88 +322,69 @@ def teacher_dashboard(request):
 
 @login_required
 def grant_permission(request, assignment_id):
-    """O'qituvchi guruhga imtihon uchun ruxsat beradi"""
+    """O'qituvchi guruhga imtihon uchun ruxsat beradi (assignment = fan + guruh)"""
     user = request.user
     if user.user_type not in ('teacher', 'admin'):
         messages.error(request, "Sizga bu sahifaga kirishga ruxsat yo'q!")
         return redirect('users:dashboard')
+
+    assignment = get_object_or_404(ExamAssignment, id=assignment_id, teacher=user)
+
+    # O'qituvchi o'zi yaratgan testlar
+    teacher_exams = Exam.objects.filter(
+        created_by=user,
+        is_active=True
+    ).order_by('title')
+
+    # Shu guruh uchun mavjud ruxsatlar (shu o'qituvchi bergan)
+    existing_permissions = ExamGroupPermission.objects.filter(
+        group=assignment.group,
+        teacher=user,
+    ).select_related('exam')
+    existing_exam_ids = list(existing_permissions.values_list('exam_id', flat=True))
+
     if request.method == 'POST':
-        # Initial assignment: create pending (inactive) permission.
-        group_id = request.POST.get('group_id')
-        deadline_str = request.POST.get('deadline')
+        exam_id = request.POST.get('exam_id')
+        duration_str = request.POST.get('duration', '').strip()
 
-        if not deadline_str:
-            messages.error(request, "Deadline tanlanishi shart!")
+        if not exam_id or not duration_str:
+            messages.error(request, "Test va vaqt (daqiqa) kiritilishi shart!")
             return redirect('exams:grant_permission', assignment_id=assignment.id)
 
-        # Deadline parsing
-        from datetime import datetime
+        exam = get_object_or_404(Exam, id=exam_id, created_by=user, is_active=True)
+
         try:
-            deadline = timezone.make_aware(datetime.strptime(deadline_str, '%Y-%m-%dT%H:%M'))
-        except (ValueError, TypeError):
-            messages.error(request, "Deadline formati noto'g'ri!")
+            duration = int(duration_str)
+            if duration < 1:
+                raise ValueError
+        except ValueError:
+            messages.error(request, "Vaqt (daqiqa) noto'g'ri kiritildi!")
             return redirect('exams:grant_permission', assignment_id=assignment.id)
 
-        # Admin deadline'dan oshmasligi
-        if deadline > assignment.admin_deadline:
-            messages.error(request, f"Deadline admin muddatidan ({assignment.admin_deadline.strftime('%d.%m.%Y %H:%M')}) oshmasligi kerak!")
-            return redirect('exams:grant_permission', assignment_id=assignment.id)
+        # Deadline = admin deadline
+        deadline = assignment.admin_deadline
 
-        # Create pending permissions for target groups (is_active=False, duration left empty)
-        if group_id == 'all':
-            target_groups = groups
-            created_count = 0
-            updated_count = 0
-            for g in target_groups:
-                perm, created = ExamGroupPermission.objects.update_or_create(
-                    exam=assignment.exam,
-                    group=g,
-                    defaults={
-                        'teacher': user,
-                        'deadline': deadline,
-                        'duration': None,
-                        'is_active': False,
-                    }
-                )
-                if created:
-                    created_count += 1
-                else:
-                    updated_count += 1
-            msg_parts = []
-            if created_count:
-                msg_parts.append(f"{created_count} ta guruhga ruxsat berildi (pending)")
-            if updated_count:
-                msg_parts.append(f"{updated_count} ta guruh yangilandi (pending)")
-            messages.success(request, f"Barcha guruhlar uchun '{assignment.exam.title}': {', '.join(msg_parts)}!")
-        else:
-            if not group_id:
-                messages.error(request, "Guruh tanlanishi shart!")
-                return redirect('exams:grant_permission', assignment_id=assignment.id)
+        # Ruxsatni yaratish yoki yangilash (darhol faol)
+        perm, created = ExamGroupPermission.objects.update_or_create(
+            exam=exam,
+            group=assignment.group,
+            defaults={
+                'teacher': user,
+                'deadline': deadline,
+                'duration': duration,
+                'is_active': True,
+            }
+        )
 
-            group = get_object_or_404(StudentGroup, id=group_id)
-
-            # Create or update pending permission
-            perm, created = ExamGroupPermission.objects.update_or_create(
-                exam=assignment.exam,
-                group=group,
-                defaults={
-                    'teacher': user,
-                    'deadline': deadline,
-                    'duration': None,
-                    'is_active': False,
-                }
-            )
-
-            action = "yaratildi" if created else "yangilandi"
-            messages.success(request, f"'{assignment.exam.title}' uchun {group.name} guruhiga ruxsat {action} (pending)!")
-
+        action = "berildi" if created else "yangilandi"
+        messages.success(request, f"'{exam.title}' uchun {assignment.group.name} guruhiga ruxsat {action}! Har bir talaba uchun {duration} daqiqa.")
         return redirect('exams:grant_permission', assignment_id=assignment.id)
 
     context = {
         'assignment': assignment,
-        'groups': groups,
+        'teacher_exams': teacher_exams,
         'existing_permissions': existing_permissions,
-        'existing_group_ids': existing_group_ids,
+        'existing_exam_ids': existing_exam_ids,
     }
     return render(request, 'exams/grant_permission.html', context)
 
@@ -437,7 +418,7 @@ def teacher_results(request, exam_id):
 
     # O'qituvchiga tayinlanganligini tekshirish
     if user.user_type == 'teacher':
-        assignment = ExamAssignment.objects.filter(exam=exam, teacher=user).first()
+        assignment = ExamAssignment.objects.filter(subject=exam.subject, teacher=user).first()
         if not assignment:
             messages.error(request, "Bu imtihon sizga tayinlanmagan!")
             return redirect('exams:teacher_dashboard')
@@ -829,7 +810,7 @@ def admin_delete_teacher(request, teacher_id):
 
 @login_required
 def admin_assignments(request):
-    """Admin sahifasi — imtihonlarni o'qituvchilarga tayinlash"""
+    """Admin sahifasi — o'qituvchilarga fan+guruh tayinlash"""
     user = request.user
     if user.user_type != 'admin' and not user.is_superuser:
         messages.error(request, "Faqat administratorlar uchun!")
@@ -837,26 +818,24 @@ def admin_assignments(request):
 
     now = timezone.now()
 
-    # Fanlar bo'yicha o'qituvchilar va ularning tayinlanishlari
     subjects = Subject.objects.all()
     teachers = CustomUser.objects.filter(user_type='teacher').order_by('first_name', 'last_name')
-    exams = Exam.objects.filter(is_active=True).select_related('subject').order_by('subject__name', 'title')
+    groups = StudentGroup.objects.all().order_by('name')
 
     # Mavjud tayinlanishlar
     assignments = ExamAssignment.objects.select_related(
-        'exam', 'exam__subject', 'teacher', 'assigned_by'
-    ).order_by('exam__subject__name', 'teacher__first_name')
+        'subject', 'group', 'teacher', 'assigned_by'
+    ).order_by('subject__name', 'group__name', 'teacher__first_name')
 
     # Filtrlash
     selected_subject = request.GET.get('subject', '')
     if selected_subject:
-        assignments = assignments.filter(exam__subject_id=selected_subject)
-        exams = exams.filter(subject_id=selected_subject)
+        assignments = assignments.filter(subject_id=selected_subject)
 
     context = {
         'subjects': subjects,
         'teachers': teachers,
-        'exams': exams,
+        'groups': groups,
         'assignments': assignments,
         'now': now,
         'selected_subject': selected_subject,
@@ -866,7 +845,7 @@ def admin_assignments(request):
 
 @login_required
 def admin_create_assignment(request):
-    """Admin — yangi tayinlanish yaratish"""
+    """Admin — yangi tayinlanish yaratish (fan + guruh + o'qituvchi)"""
     user = request.user
     if user.user_type != 'admin' and not user.is_superuser:
         messages.error(request, "Faqat administratorlar uchun!")
@@ -875,16 +854,18 @@ def admin_create_assignment(request):
     if request.method != 'POST':
         return redirect('exams:admin_assignments')
 
-    exam_id = request.POST.get('exam_id')
+    subject_id = request.POST.get('subject_id')
+    group_id = request.POST.get('group_id')
     teacher_id = request.POST.get('teacher_id')
     start_time_str = request.POST.get('start_time', '').strip()
     deadline_str = request.POST.get('deadline', '').strip()
 
-    if not exam_id or not teacher_id or not deadline_str:
-        messages.error(request, "Imtihon, o'qituvchi va tugash vaqti tanlanishi shart!")
+    if not subject_id or not group_id or not teacher_id or not deadline_str:
+        messages.error(request, "Fan, guruh, o'qituvchi va tugash vaqti tanlanishi shart!")
         return redirect('exams:admin_assignments')
 
-    exam = get_object_or_404(Exam, id=exam_id)
+    subject = get_object_or_404(Subject, id=subject_id)
+    group = get_object_or_404(StudentGroup, id=group_id)
     teacher = get_object_or_404(CustomUser, id=teacher_id, user_type='teacher')
 
     from datetime import datetime
@@ -908,7 +889,8 @@ def admin_create_assignment(request):
 
     # Yaratish yoki yangilash
     assignment, created = ExamAssignment.objects.update_or_create(
-        exam=exam,
+        subject=subject,
+        group=group,
         teacher=teacher,
         defaults={
             'admin_start_time': admin_start_time,
@@ -925,20 +907,20 @@ def admin_create_assignment(request):
     Notification.objects.create(
         user=teacher,
         notification_type='assignment',
-        title=f"Yangi imtihon tayinlandi: {exam.title}",
+        title=f"Yangi tayinlanish: {subject.name} — {group.name}",
         message=(
-            f"Sizga \"{exam.title}\" ({exam.subject.name}) imtihoni tayinlandi.\n"
+            f"Sizga \"{subject.name}\" fani bo'yicha \"{group.name}\" guruhi tayinlandi.\n"
             f"{start_info}"
             f"Tugash muddati: {admin_deadline.strftime('%d.%m.%Y %H:%M')}\n"
             f"Tayinlagan: {user.get_full_name()}\n\n"
-            f"O'qituvchi boshqaruv panelidan guruhlarni tanlashingiz va ruxsat berishingiz mumkin."
+            f"O'qituvchi boshqaruv panelidan imtihonlarni tanlashingiz va ruxsat berishingiz mumkin."
         )
     )
 
     action = "tayinlandi" if created else "yangilandi"
     messages.success(
         request,
-        f"'{exam.title}' imtihoni {teacher.get_full_name()} ga {action}! "
+        f"'{subject.name}' fani — '{group.name}' guruhi {teacher.get_full_name()} ga {action}! "
         f"O'qituvchiga bildirishnoma yuborildi."
     )
     return redirect('exams:admin_assignments')
@@ -954,21 +936,22 @@ def admin_delete_assignment(request, assignment_id):
 
     assignment = get_object_or_404(ExamAssignment, id=assignment_id)
     teacher = assignment.teacher
-    exam_title = assignment.exam.title
+    subject_name = assignment.subject.name
+    group_name = assignment.group.name
 
     # O'qituvchiga bildirishnoma
     Notification.objects.create(
         user=teacher,
         notification_type='info',
-        title=f"Imtihon tayinlanishi bekor qilindi",
+        title=f"Tayinlanish bekor qilindi",
         message=(
-            f"\"{exam_title}\" imtihoni uchun tayinlanishingiz "
+            f"\"{subject_name}\" fani — \"{group_name}\" guruhi uchun tayinlanishingiz "
             f"administrator ({user.get_full_name()}) tomonidan bekor qilindi."
         )
     )
 
     assignment.delete()
-    messages.success(request, f"'{exam_title}' tayinlanishi o'chirildi. O'qituvchiga xabar yuborildi.")
+    messages.success(request, f"'{subject_name} — {group_name}' tayinlanishi o'chirildi. O'qituvchiga xabar yuborildi.")
     return redirect('exams:admin_assignments')
 
 
@@ -1267,10 +1250,20 @@ def teacher_activate_permission(request, permission_id):
         messages.error(request, "Noto'g'ri so'rov")
         return redirect('exams:teacher_dashboard')
 
+    # Tegishli assignment ni topish (fan + guruh bo'yicha)
+    related_assignment = ExamAssignment.objects.filter(
+        subject=perm.exam.subject,
+        group=perm.group,
+        teacher=user
+    ).first()
+    redirect_assignment_id = related_assignment.id if related_assignment else None
+
     duration_str = request.POST.get('duration', '').strip()
     if not duration_str:
         messages.error(request, "Test vaqti kiritilishi shart!")
-        return redirect('exams:grant_permission', assignment_id=perm.exam.assignments.filter(teacher=user).first().id)
+        if redirect_assignment_id:
+            return redirect('exams:grant_permission', assignment_id=redirect_assignment_id)
+        return redirect('exams:teacher_dashboard')
 
     try:
         duration = int(duration_str)
@@ -1278,16 +1271,22 @@ def teacher_activate_permission(request, permission_id):
             raise ValueError
     except ValueError:
         messages.error(request, "Vaqt (daqiqa) noto'g'ri kiritildi!")
-        return redirect('exams:grant_permission', assignment_id=perm.exam.assignments.filter(teacher=user).first().id)
+        if redirect_assignment_id:
+            return redirect('exams:grant_permission', assignment_id=redirect_assignment_id)
+        return redirect('exams:teacher_dashboard')
 
     # Check deadline not passed
     if timezone.now() > perm.deadline:
         messages.error(request, "Permission muddati o'tib ketgan!")
-        return redirect('exams:grant_permission', assignment_id=perm.exam.assignments.filter(teacher=user).first().id)
+        if redirect_assignment_id:
+            return redirect('exams:grant_permission', assignment_id=redirect_assignment_id)
+        return redirect('exams:teacher_dashboard')
 
     perm.duration = duration
     perm.is_active = True
     perm.save()
 
     messages.success(request, f"{perm.group.name} uchun '{perm.exam.title}' testi boshlandi — {duration} daqiqa")
-    return redirect('exams:grant_permission', assignment_id=perm.exam.assignments.filter(teacher=user).first().id)
+    if redirect_assignment_id:
+        return redirect('exams:grant_permission', assignment_id=redirect_assignment_id)
+    return redirect('exams:teacher_dashboard')

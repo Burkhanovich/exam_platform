@@ -7,13 +7,13 @@
 {% block content %}
 <div style="margin-bottom:1.5rem;">
     <h2>Boshqaruv paneli</h2>
-    <p style="color:var(--gray-500);font-size:0.9rem;">Sizga tayinlangan imtihonlarni boshqaring va guruhlarga ruxsat bering</p>
+    <p style="color:var(--gray-500);font-size:0.9rem;">Sizga tayinlangan fan va guruhlarni boshqaring, guruhlarga ruxsat bering</p>
 </div>
 
-<!-- Tayinlangan imtihonlar -->
+<!-- Tayinlangan fan+guruhlar -->
 <div class="card" style="margin-bottom:1.5rem;">
     <div class="card-header">
-        <h3 class="card-title"><i class="fas fa-clipboard-list" style="color:var(--primary);margin-right:0.5rem;"></i>Tayinlangan imtihonlar</h3>
+        <h3 class="card-title"><i class="fas fa-clipboard-list" style="color:var(--primary);margin-right:0.5rem;"></i>Tayinlangan fanlar va guruhlar</h3>
     </div>
 
     {% if assignments %}
@@ -21,9 +21,8 @@
         <table>
             <thead>
                 <tr>
-                    <th>Imtihon</th>
                     <th>Fan</th>
-                    <th>Tur</th>
+                    <th>Guruh</th>
                     <th>Boshlanish</th>
                     <th>Tugash</th>
                     <th>Holat</th>
@@ -34,17 +33,8 @@
             <tbody>
                 {% for a in assignments %}
                 <tr>
-                    <td style="font-weight:600;">{{ a.exam.title }}</td>
-                    <td>{{ a.exam.subject.name }}</td>
-                    <td>
-                        {% if a.exam.exam_type == 'midterm' %}
-                            <span class="badge badge-info">Oraliq</span>
-                        {% elif a.exam.exam_type == 'final' %}
-                            <span class="badge badge-primary">Yakuniy</span>
-                        {% else %}
-                            <span class="badge badge-warning">Mashq</span>
-                        {% endif %}
-                    </td>
+                    <td style="font-weight:600;">{{ a.subject.name }}</td>
+                    <td><span class="badge badge-warning">{{ a.group.name }}</span></td>
                     <td style="font-size:0.85rem;">
                         {% if a.admin_start_time %}
                             {{ a.admin_start_time|date:"d.m.Y H:i" }}
@@ -73,9 +63,6 @@
                             <i class="fas fa-user-shield"></i> Ruxsat berish
                         </a>
                         {% endif %}
-                        <a href="{% url 'exams:teacher_results' a.exam.id %}" class="btn btn-sm btn-secondary">
-                            <i class="fas fa-chart-bar"></i> Natijalar
-                        </a>
                     </td>
                 </tr>
                 {% endfor %}
@@ -85,8 +72,8 @@
     {% else %}
     <div class="empty-state">
         <div class="empty-icon"><i class="fas fa-inbox"></i></div>
-        <h3>Hali tayinlangan imtihonlar yo'q</h3>
-        <p>Admin sizga imtihon tayinlaganida bu yerda ko'rsatiladi.</p>
+        <h3>Hali tayinlangan fanlar yo'q</h3>
+        <p>Admin sizga fan va guruh tayinlaganida bu yerda ko'rsatiladi.</p>
     </div>
     {% endif %}
 </div>

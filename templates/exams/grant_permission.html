@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}Ruxsat berish - {{ assignment.exam.title }}{% endblock %}
+{% block title %}Ruxsat berish - {{ assignment.subject.name }} — {{ assignment.group.name }}{% endblock %}
 {% block nav_teacher %}active{% endblock %}
 {% block page_title %}Ruxsat berish{% endblock %}
 
@@ -14,16 +14,16 @@
     <span style="color:var(--gray-600);font-size:0.85rem;font-weight:600;">Ruxsat berish</span>
 </div>
 
-<!-- Imtihon ma'lumotlari -->
+<!-- Tayinlanish ma'lumotlari -->
 <div class="card" style="border-left:4px solid var(--primary);margin-bottom:1.5rem;">
     <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
         <div style="width:50px;height:50px;border-radius:12px;background:rgba(99,102,241,0.1);display:flex;align-items:center;justify-content:center;color:var(--primary);font-size:1.3rem;">
-            <i class="fas fa-file-alt"></i>
+            <i class="fas fa-book"></i>
         </div>
         <div style="flex:1;">
-            <h3 style="margin:0;">{{ assignment.exam.title }}</h3>
+            <h3 style="margin:0;">{{ assignment.subject.name }}</h3>
             <p style="margin:0.25rem 0 0;color:var(--gray-500);font-size:0.85rem;">
-                {{ assignment.exam.subject.name }} &bull; {{ assignment.exam.get_exam_type_display }}
+                <i class="fas fa-users" style="margin-right:0.3rem;"></i>{{ assignment.group.name }}
             </p>
         </div>
         <div style="text-align:right;">
@@ -37,41 +37,36 @@
     <!-- Ruxsat berish formasi -->
     <div class="card">
         <div class="card-header">
-            <h3 class="card-title"><i class="fas fa-plus-circle" style="color:var(--success);margin-right:0.5rem;"></i>Guruhga ruxsat berish</h3>
+            <h3 class="card-title"><i class="fas fa-plus-circle" style="color:var(--success);margin-right:0.5rem;"></i>Test uchun ruxsat berish</h3>
         </div>
 
         <form method="post">
             {% csrf_token %}
             <div class="form-group">
-                <label for="group_id">Guruhni tanlang</label>
-                <select name="group_id" id="group_id" class="form-control" required>
-                    <option value="">-- Guruh tanlang --</option>
-                    <option value="all" style="font-weight:700;color:var(--primary);">🔓 Barcha guruhlar</option>
-                    {% for g in groups %}
-                        <option value="{{ g.id }}" {% if g.id in existing_group_ids %}disabled{% endif %}>
-                            {{ g.name }} ({{ g.students_count }} talaba)
-                            {% if g.id in existing_group_ids %} — allaqachon ruxsat berilgan{% endif %}
+                <label for="exam_id"><i class="fas fa-file-alt" style="color:var(--gray-400);margin-right:0.3rem;"></i>Testni tanlang</label>
+                <select name="exam_id" id="exam_id" class="form-control" required>
+                    <option value="">-- Testni tanlang --</option>
+                    {% for exam in teacher_exams %}
+                        <option value="{{ exam.id }}" {% if exam.id in existing_exam_ids %}disabled{% endif %}>
+                            {{ exam.title }}
+                            {% if exam.id in existing_exam_ids %} — allaqachon ruxsat berilgan{% endif %}
                         </option>
                     {% endfor %}
                 </select>
-            </div>
-
-            <div class="form-group">
-                <label for="deadline">Deadline</label>
-                <input type="datetime-local" name="deadline" id="deadline" class="form-control" required
-                       max="{{ assignment.admin_deadline|date:'Y-m-d' }}T{{ assignment.admin_deadline|date:'H:i' }}">
-                <small style="color:var(--gray-400);">Admin deadline: {{ assignment.admin_deadline|date:"d.m.Y H:i" }} dan oshmasligi kerak</small>
+                {% if not teacher_exams %}
+                <small style="color:var(--danger);font-size:0.8rem;">Siz hali test yaratmagansiz. Avval test yarating.</small>
+                {% endif %}
             </div>
 
             <div class="form-group">
                 <label for="duration"><i class="fas fa-clock" style="color:var(--secondary);margin-right:0.3rem;"></i>Test vaqti (daqiqa)</label>
-                <input type="number" name="duration" id="duration" class="form-control" min="1" max="600"
-                       placeholder="Ixtiyoriy — keyinchalik o'qituvchi belgilaydi">
-                <small style="color:var(--gray-400);">Bu maydon ixtiyoriy; agar to'ldirilmasa ruxsat pending (o'qituvchi keyin faollashtiradi)</small>
+                <input type="number" name="duration" id="duration" class="form-control" min="1" max="600" required
+                       placeholder="Masalan: 30, 45, 60...">
+                <small style="color:var(--gray-400);font-size:0.75rem;">Har bir o'quvchi testni boshlagandan boshlab hisoblanadi</small>
             </div>
 
             <button type="submit" class="btn btn-primary" style="width:100%;">
-                <i class="fas fa-check"></i> Ruxsat berish (pending)
+                <i class="fas fa-check"></i> Ruxsat berish
             </button>
         </form>
     </div>
@@ -79,35 +74,38 @@
     <!-- Mavjud ruxsatlar -->
     <div class="card">
         <div class="card-header">
-            <h3 class="card-title"><i class="fas fa-list" style="color:var(--primary);margin-right:0.5rem;"></i>Mavjud ruxsatlar</h3>
+            <h3 class="card-title"><i class="fas fa-list" style="color:var(--primary);margin-right:0.5rem;"></i>Berilgan ruxsatlar</h3>
         </div>
 
         {% if existing_permissions %}
         <div style="display:flex;flex-direction:column;gap:0.75rem;">
             {% for p in existing_permissions %}
-            <div style="display:flex;align-items:center;justify-content:space-between;padding:0.75rem 1rem;background:var(--gray-50);border-radius:var(--radius);border-left:3px solid {% if p.is_active %}var(--success){% else %}var(--danger){% endif %};">
-                <div>
-                    <span style="font-weight:600;">{{ p.group.name }}</span>
-                    <span style="color:var(--gray-500);font-size:0.8rem;margin-left:0.5rem;">
-                        {{ p.deadline|date:"d.m.Y H:i" }}
-                    </span>
-                    {% if p.duration %}
-                    <span class="badge badge-info" style="margin-left:0.3rem;font-size:0.7rem;">{{ p.duration }} daq</span>
-                    {% endif %}
+            <div style="padding:0.75rem 1rem;background:var(--gray-50);border-radius:var(--radius);border-left:3px solid {% if p.is_active %}var(--success){% else %}var(--danger){% endif %};">
+                <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;">
+                    <div>
+                        <span style="font-weight:600;">{{ p.exam.title }}</span>
+                        {% if p.duration %}
+                        <span class="badge badge-info" style="margin-left:0.3rem;font-size:0.7rem;">{{ p.duration }} daqiqa</span>
+                        {% endif %}
+                    </div>
+                    <div style="display:flex;gap:0.5rem;align-items:center;">
+                        {% if p.is_active %}
+                            <span class="badge badge-success"><i class="fas fa-check-circle"></i> Faol</span>
+                        {% else %}
+                            <span class="badge badge-danger"><i class="fas fa-times-circle"></i> Bekor qilingan</span>
+                        {% endif %}
+                        {% if p.is_active %}
+                        <form method="post" action="{% url 'exams:revoke_permission' p.id %}" style="display:inline;" onsubmit="return confirm('Bu ruxsatni bekor qilmoqchimisiz?')">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-danger" title="Bekor qilish">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </form>
+                        {% endif %}
+                    </div>
                 </div>
-                <div style="display:flex;gap:0.5rem;align-items:center;">
-                    {% if p.is_active %}
-                        <span class="badge badge-success">Faol</span>
-                    {% else %}
-                        <span class="badge badge-warning">Pending</span>
-                    {% endif %}
-                    {% if not p.is_active %}
-                    <form method="post" action="{% url 'exams:teacher_activate_permission' p.id %}" style="display:flex;gap:0.5rem;align-items:center;margin-left:0.5rem;">
-                        {% csrf_token %}
-                        <input type="number" name="duration" class="form-control" placeholder="Vaqt (daq)" style="width:96px;" min="1" max="600" required>
-                        <button type="submit" class="btn btn-success" style="height:36px;">Start</button>
-                    </form>
-                    {% endif %}
+                <div style="font-size:0.75rem;color:var(--gray-400);margin-top:0.3rem;">
+                    Deadline: {{ p.deadline|date:"d.m.Y H:i" }}
                 </div>
             </div>
             {% endfor %}
