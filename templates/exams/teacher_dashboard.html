@@ -133,8 +133,13 @@
                                 <i class="fas fa-times"></i> Bekor qilish
                             </button>
                         </form>
-                        {% elif p.status == 'ended' and p.ended_at %}
+                        {% elif p.status == 'ended' %}
+                        <a href="{% url 'exams:permission_results' p.id %}" class="btn btn-sm btn-primary" style="margin-right:0.3rem;">
+                            <i class="fas fa-chart-bar"></i> Natijalar
+                        </a>
+                        {% if p.ended_at %}
                         <span style="font-size:0.75rem;color:var(--gray-400);">{{ p.ended_at|date:"d.m.Y H:i" }}</span>
+                        {% endif %}
                         {% endif %}
                     </td>
                 </tr>

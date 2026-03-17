@@ -1,0 +1,166 @@
+{% extends 'base.html' %}
+
+{% block title %}Natijalar — {{ exam.title }} · {{ group.name }}{% endblock %}
+{% block nav_teacher %}active{% endblock %}
+{% block page_title %}Imtihon natijalari{% endblock %}
+
+{% block content %}
+<!-- Breadcrumb -->
+<div style="margin-bottom:1.5rem;">
+    <a href="{% url 'exams:teacher_dashboard' %}" style="color:var(--gray-500);text-decoration:none;font-size:0.85rem;">
+        <i class="fas fa-arrow-left"></i> O'qituvchi paneli
+    </a>
+    <span style="color:var(--gray-400);margin:0 0.5rem;">/</span>
+    <span style="color:var(--gray-600);font-size:0.85rem;font-weight:600;">Natijalar</span>
+</div>
+
+<!-- Imtihon ma'lumotlari -->
+<div class="card" style="border-left:4px solid var(--primary);margin-bottom:1.5rem;">
+    <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
+        <div style="width:50px;height:50px;border-radius:12px;background:rgba(99,102,241,0.1);display:flex;align-items:center;justify-content:center;color:var(--primary);font-size:1.3rem;">
+            <i class="fas fa-file-alt"></i>
+        </div>
+        <div style="flex:1;">
+            <h3 style="margin:0;">{{ exam.title }}</h3>
+            <p style="margin:0.25rem 0 0;color:var(--gray-500);font-size:0.85rem;">
+                <i class="fas fa-users" style="margin-right:0.3rem;"></i>{{ group.name }}
+                {% if perm.duration %}
+                <span style="margin-left:0.75rem;"><i class="fas fa-clock" style="margin-right:0.3rem;"></i>{{ perm.duration }} daqiqa</span>
+                {% endif %}
+            </p>
+        </div>
+        <div style="text-align:right;">
+            {% if perm.status == 'ended' %}
+                <span class="badge badge-warning" style="font-size:0.8rem;"><i class="fas fa-stop-circle"></i> Tugatilgan</span>
+                {% if perm.ended_at %}
+                <div style="font-size:0.75rem;color:var(--gray-400);margin-top:0.25rem;">{{ perm.ended_at|date:"d.m.Y H:i" }}</div>
+                {% endif %}
+            {% elif perm.status == 'active' and perm.is_active %}
+                <span class="badge badge-success" style="font-size:0.8rem;"><i class="fas fa-check-circle"></i> Faol</span>
+            {% else %}
+                <span class="badge badge-danger" style="font-size:0.8rem;"><i class="fas fa-times-circle"></i> Bekor qilingan</span>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Statistika -->
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1rem;margin-bottom:1.5rem;">
+    <div class="card" style="text-align:center;padding:1rem;">
+        <div style="font-size:1.8rem;font-weight:800;color:var(--primary);">{{ total_students }}</div>
+        <div style="font-size:0.8rem;color:var(--gray-500);">Jami talabalar</div>
+    </div>
+    <div class="card" style="text-align:center;padding:1rem;">
+        <div style="font-size:1.8rem;font-weight:800;color:var(--success);">{{ total_submitted }}</div>
+        <div style="font-size:0.8rem;color:var(--gray-500);">Topshirgan</div>
+    </div>
+    <div class="card" style="text-align:center;padding:1rem;">
+        <div style="font-size:1.8rem;font-weight:800;color:var(--danger);">{{ total_not_submitted }}</div>
+        <div style="font-size:0.8rem;color:var(--gray-500);">Topshirmagan</div>
+    </div>
+    <div class="card" style="text-align:center;padding:1rem;">
+        <div style="font-size:1.8rem;font-weight:800;color:var(--secondary);">{{ total_passed }}</div>
+        <div style="font-size:0.8rem;color:var(--gray-500);">O'tgan</div>
+    </div>
+    <div class="card" style="text-align:center;padding:1rem;">
+        <div style="font-size:1.8rem;font-weight:800;color:var(--info);">{{ avg_score }}</div>
+        <div style="font-size:0.8rem;color:var(--gray-500);">O'rtacha ball</div>
+    </div>
+</div>
+
+<!-- Natijalar jadvali -->
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title"><i class="fas fa-list-ol" style="color:var(--primary);margin-right:0.5rem;"></i>Talabalar natijalari</h3>
+    </div>
+
+    {% if student_data %}
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th style="width:40px;">#</th>
+                    <th>Talaba</th>
+                    <th style="text-align:center;">Holat</th>
+                    <th style="text-align:center;">To'g'ri</th>
+                    <th style="text-align:center;">Noto'g'ri</th>
+                    <th style="text-align:center;">Ball</th>
+                    <th style="text-align:center;">Foiz</th>
+                    <th style="text-align:center;">Natija</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in student_data %}
+                <tr style="{% if item.status == 'not_started' %}opacity:0.6;{% endif %}">
+                    <td style="color:var(--gray-400);font-size:0.85rem;">{{ forloop.counter }}</td>
+                    <td>
+                        <div style="font-weight:600;">{{ item.student.get_full_name }}</div>
+                        <div style="font-size:0.75rem;color:var(--gray-400);">{{ item.student.username }}</div>
+                    </td>
+                    <td style="text-align:center;">
+                        {% if item.status == 'completed' and item.result %}
+                            <span class="badge badge-success"><i class="fas fa-check"></i> Topshirgan</span>
+                        {% elif item.status == 'in_progress' %}
+                            <span class="badge badge-warning"><i class="fas fa-spinner"></i> Jarayonda</span>
+                        {% elif item.status == 'completed' and not item.result %}
+                            <span class="badge badge-info"><i class="fas fa-clock"></i> Yakunlangan</span>
+                        {% else %}
+                            <span class="badge badge-danger"><i class="fas fa-minus-circle"></i> Topshirmagan</span>
+                        {% endif %}
+                    </td>
+                    <td style="text-align:center;">
+                        {% if item.result %}
+                            <span style="color:var(--success);font-weight:600;">{{ item.result.correct_answers }}</span>
+                        {% else %}
+                            <span style="color:var(--gray-300);">—</span>
+                        {% endif %}
+                    </td>
+                    <td style="text-align:center;">
+                        {% if item.result %}
+                            <span style="color:var(--danger);font-weight:600;">{{ item.result.wrong_answers }}</span>
+                        {% else %}
+                            <span style="color:var(--gray-300);">—</span>
+                        {% endif %}
+                    </td>
+                    <td style="text-align:center;">
+                        {% if item.result %}
+                            <span style="font-weight:700;font-size:1.05rem;">{{ item.result.score|floatformat:1 }}</span>
+                            <span style="font-size:0.7rem;color:var(--gray-400);">/{{ exam.total_marks }}</span>
+                        {% else %}
+                            <span style="color:var(--gray-300);">—</span>
+                        {% endif %}
+                    </td>
+                    <td style="text-align:center;">
+                        {% if item.result %}
+                            <span style="font-weight:600;">{{ item.result.percentage|floatformat:1 }}%</span>
+                        {% else %}
+                            <span style="color:var(--gray-300);">—</span>
+                        {% endif %}
+                    </td>
+                    <td style="text-align:center;">
+                        {% if item.result %}
+                            {% if item.result.passed %}
+                                <span class="badge badge-success">O'tdi</span>
+                            {% else %}
+                                <span class="badge badge-danger">Yiqildi</span>
+                            {% endif %}
+                        {% elif item.status == 'not_started' %}
+                            <span style="color:var(--gray-300);font-size:0.8rem;">—</span>
+                        {% else %}
+                            <span class="badge badge-warning">Kutilmoqda</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <div class="empty-icon"><i class="fas fa-users"></i></div>
+        <h3>Guruhda talabalar yo'q</h3>
+        <p>Bu guruhga hali talabalar biriktirilmagan.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -15,6 +15,7 @@ urlpatterns = [
     path('teacher/grant/<int:assignment_id>/', views.grant_permission, name='grant_permission'),
     path('teacher/revoke/<int:permission_id>/', views.revoke_permission, name='revoke_permission'),
     path('teacher/end/<int:permission_id>/', views.end_exam_permission, name='end_exam_permission'),
+    path('teacher/results-perm/<int:permission_id>/', views.permission_results, name='permission_results'),
     path('teacher/activate-permission/<int:permission_id>/', views.teacher_activate_permission, name='teacher_activate_permission'),
     path('teacher/results/<int:exam_id>/', views.teacher_results, name='teacher_results'),
     path('teacher/create-exam/', views.teacher_create_exam, name='teacher_create_exam'),

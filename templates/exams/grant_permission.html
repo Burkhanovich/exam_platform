@@ -109,6 +109,10 @@
                                 <i class="fas fa-times"></i>
                             </button>
                         </form>
+                        {% elif p.status == 'ended' %}
+                        <a href="{% url 'exams:permission_results' p.id %}" class="btn btn-sm btn-primary" title="Natijalar">
+                            <i class="fas fa-chart-bar"></i>
+                        </a>
                         {% endif %}
                     </div>
                 </div>

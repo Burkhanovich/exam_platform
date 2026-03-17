@@ -469,7 +469,93 @@ def end_exam_permission(request, permission_id):
     if ended_count > 0:
         msg += f" {ended_count} ta jarayondagi urinish avtomatik yakunlandi."
     messages.success(request, msg)
-    return redirect('exams:teacher_dashboard')
+    return redirect('exams:permission_results', permission_id=perm.id)
+
+
+@login_required
+def permission_results(request, permission_id):
+    """O'qituvchi tugatilgan imtihon natijalarini ko'radi — topshirgan va topshirmaganlar"""
+    user = request.user
+    if user.user_type not in ('teacher', 'admin'):
+        messages.error(request, "Sizga ruxsat yo'q!")
+        return redirect('users:dashboard')
+
+    perm = get_object_or_404(ExamGroupPermission, id=permission_id, teacher=user)
+    exam = perm.exam
+    group = perm.group
+
+    # Guruhdagi barcha talabalar
+    all_students = CustomUser.objects.filter(
+        student_group=group,
+        user_type='student',
+    ).order_by('last_name', 'first_name')
+
+    # Natijalar
+    results = ExamResult.objects.filter(
+        exam=exam,
+        student__student_group=group,
+    ).select_related('student', 'attempt')
+
+    results_by_student = {r.student_id: r for r in results}
+
+    # Urinishlar (natijasi yo'q bo'lganlar uchun)
+    attempts = ExamAttempt.objects.filter(
+        exam=exam,
+        student__student_group=group,
+    ).select_related('student')
+    attempts_by_student = {a.student_id: a for a in attempts}
+
+    # Talabalar ro'yxatini tayyorlash
+    student_data = []
+    total_passed = 0
+    total_submitted = 0
+    total_score = 0
+
+    for student in all_students:
+        result = results_by_student.get(student.id)
+        attempt = attempts_by_student.get(student.id)
+
+        if result:
+            total_submitted += 1
+            total_score += result.score
+            if result.passed:
+                total_passed += 1
+            student_data.append({
+                'student': student,
+                'status': 'completed',
+                'result': result,
+                'attempt': attempt,
+            })
+        elif attempt:
+            status = 'in_progress' if attempt.status == 'in_progress' else 'completed'
+            student_data.append({
+                'student': student,
+                'status': status,
+                'result': None,
+                'attempt': attempt,
+            })
+        else:
+            student_data.append({
+                'student': student,
+                'status': 'not_started',
+                'result': None,
+                'attempt': None,
+            })
+
+    avg_score = round(total_score / total_submitted, 1) if total_submitted > 0 else 0
+
+    context = {
+        'perm': perm,
+        'exam': exam,
+        'group': group,
+        'student_data': student_data,
+        'total_students': all_students.count(),
+        'total_submitted': total_submitted,
+        'total_passed': total_passed,
+        'total_not_submitted': all_students.count() - total_submitted,
+        'avg_score': avg_score,
+    }
+    return render(request, 'exams/permission_results.html', context)
 
 
 @login_required
