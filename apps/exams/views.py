@@ -1071,6 +1071,102 @@ def mark_all_notifications_read(request):
     return redirect('users:notifications')
 
 
+@login_required
+def admin_subjects(request):
+    """Admin — fanlarni boshqarish (ro'yxat, qidiruv)"""
+    user = request.user
+    if user.user_type != 'admin' and not user.is_superuser:
+        messages.error(request, "Faqat administratorlar uchun!")
+        return redirect('users:dashboard')
+
+    search_q = request.GET.get('q', '').strip()
+    subjects = Subject.objects.all().order_by('name')
+    if search_q:
+        subjects = subjects.filter(name__icontains=search_q)
+
+    context = {
+        'subjects': subjects,
+        'search_q': search_q,
+    }
+    return render(request, 'exams/admin_subjects.html', context)
+
+
+@login_required
+def admin_create_subject(request):
+    """Admin — yangi fan yaratish"""
+    user = request.user
+    if user.user_type != 'admin' and not user.is_superuser:
+        messages.error(request, "Faqat administratorlar uchun!")
+        return redirect('users:dashboard')
+
+    if request.method != 'POST':
+        return redirect('exams:admin_subjects')
+
+    name = request.POST.get('name', '').strip()
+    description = request.POST.get('description', '').strip()
+
+    if not name:
+        messages.error(request, "Fan nomi kiritilishi shart!")
+        return redirect('exams:admin_subjects')
+
+    if Subject.objects.filter(name__iexact=name).exists():
+        messages.error(request, f"'{name}' nomli fan allaqachon mavjud!")
+        return redirect('exams:admin_subjects')
+
+    Subject.objects.create(name=name, description=description)
+    messages.success(request, f"'{name}' fan yaratildi!")
+    return redirect('exams:admin_subjects')
+
+
+@login_required
+def admin_edit_subject(request, subject_id):
+    """Admin — fanni tahrirlash"""
+    user = request.user
+    if user.user_type != 'admin' and not user.is_superuser:
+        messages.error(request, "Faqat administratorlar uchun!")
+        return redirect('users:dashboard')
+
+    subject = get_object_or_404(Subject, id=subject_id)
+
+    if request.method == 'POST':
+        name = request.POST.get('name', '').strip()
+        description = request.POST.get('description', '').strip()
+        if not name:
+            messages.error(request, "Fan nomi kiritilishi shart!")
+            return redirect('exams:admin_subjects')
+        if Subject.objects.filter(name__iexact=name).exclude(id=subject.id).exists():
+            messages.error(request, f"'{name}' nomli fan allaqachon mavjud!")
+            return redirect('exams:admin_subjects')
+        subject.name = name
+        subject.description = description
+        subject.save()
+        messages.success(request, "Fan ma'lumotlari yangilandi.")
+        return redirect('exams:admin_subjects')
+
+    # GET — show edit form is handled in the list template via modal
+    return redirect('exams:admin_subjects')
+
+
+@login_required
+def admin_delete_subject(request, subject_id):
+    """Admin — fanni o'chirish (agar unga bog'langan imtihonlar bo'lmasa)"""
+    user = request.user
+    if user.user_type != 'admin' and not user.is_superuser:
+        messages.error(request, "Faqat administratorlar uchun!")
+        return redirect('users:dashboard')
+
+    subject = get_object_or_404(Subject, id=subject_id)
+    linked_exams = subject.exams.count()
+    if linked_exams > 0:
+        messages.error(request, f"'{subject.name}' faniga {linked_exams} ta imtihon bog'langan. Avval imtihonlarni o'chiring.")
+        return redirect('exams:admin_subjects')
+
+    name = subject.name
+    subject.delete()
+    messages.success(request, f"'{name}' fan o'chirildi.")
+    return redirect('exams:admin_subjects')
+
+
 # ===== ADMIN O'QUVCHILAR BOSHQARUVI =====
 
 @login_required

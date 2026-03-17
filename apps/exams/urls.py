@@ -36,4 +36,9 @@ urlpatterns = [
     path('admin-panel/students/assign-group/', views.admin_assign_student_group, name='admin_assign_student_group'),
     path('admin-panel/students/create-group/', views.admin_create_group, name='admin_create_group'),
     path('admin-panel/students/delete-group/<int:group_id>/', views.admin_delete_group, name='admin_delete_group'),
+    # Admin fanlar (subjects) boshqaruvi
+    path('admin-panel/subjects/', views.admin_subjects, name='admin_subjects'),
+    path('admin-panel/subjects/create/', views.admin_create_subject, name='admin_create_subject'),
+    path('admin-panel/subjects/edit/<int:subject_id>/', views.admin_edit_subject, name='admin_edit_subject'),
+    path('admin-panel/subjects/delete/<int:subject_id>/', views.admin_delete_subject, name='admin_delete_subject'),
 ]

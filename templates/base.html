@@ -819,6 +819,11 @@
                         </a>
                     </li>
                     <li class="nav-item">
+                        <a href="{% url 'exams:admin_subjects' %}" class="nav-link {% block nav_admin_subjects %}{% endblock %}">
+                            <i class="fas fa-book"></i> Fanlar
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a href="{% url 'exams:admin_assignments' %}" class="nav-link {% block nav_admin_assign %}{% endblock %}">
                             <i class="fas fa-user-shield"></i> Ruxsat berish
                         </a>
