@@ -792,7 +792,6 @@ def teacher_edit_exam(request, exam_id):
 
     context = {
         'exam': exam,
-        'subjects': subjects,
         'questions_json': json.dumps(questions_data, ensure_ascii=False),
     }
     return render(request, 'exams/teacher_edit_exam.html', context)
